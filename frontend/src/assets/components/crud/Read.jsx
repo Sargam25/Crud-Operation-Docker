@@ -8,7 +8,7 @@ const Read = () => {
     const [data, setData] = useState([]);
 
     useEffect(() => {
-        axios.get(`http://localhost:3000/read/${id}`)
+        axios.get(`http://localhost:5050/read/${id}`)
             .then(response => {
                 console.log(response);
                 setData(response.data[0]);

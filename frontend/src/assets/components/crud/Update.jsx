@@ -9,7 +9,7 @@ const Update = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
-        axios.get(`http://localhost:3000/read/${id}`)
+        axios.get(`http://localhost:5050/read/${id}`)
             .then(response => {
                 console.log(response);
                 setValues({ ...values, name: response.data[0].name, email: response.data[0].email, password: response.data[0].password })
@@ -19,7 +19,7 @@ const Update = () => {
 
     const handleUpdate = (event) => {
         event.preventDefault();
-        axios.put(`http://localhost:3000/update/${id}`, values)
+        axios.put(`http://localhost:5050/update/${id}`, values)
             .then(response => {
                 console.log(response);
                 navigate('/');

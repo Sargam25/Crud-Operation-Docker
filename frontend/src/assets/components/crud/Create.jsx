@@ -9,7 +9,7 @@ const Create = () => {
 
   const haddleSubmit = (event) => {
     event.preventDefault(); // prevent page reload
-    axios.post('http://localhost:3000/userRegistration', values)
+    axios.post('http://localhost:5050/userRegistration', values)
       .then(response => {
         console.log(response);
         navigate('/');

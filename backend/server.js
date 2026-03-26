@@ -1,66 +1,119 @@
 import express from "express";
 import cors from "cors";
-import mysql from "mysql2";
+import mysql from "mysql2/promise"; // Use promise-based mysql2
 
 const app = express();
-const port = 3000;
-app.use(cors()); // for allowing cross-origin requests from frontend to backend server.It is a middleware function.
-app.use(express.json()); // for parsing application/json
+const port = 5050;
 
-app.listen(port, () => {
-  console.log(`Server listening on port : ${port}`);
-});
+app.use(cors());
+app.use(express.json());
 
-const connection = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "123456",
-  database: "react_crud",
-});
+// ---------------------------
+// MySQL connection with retry
+// ---------------------------
+let connection;
 
-app.get("/", (req, res) => {
-  const queery = "SELECT * FROM user";
-  connection.query(queery, (err, result) => {
-    if (err) return res.json({ Message: err });
-    return res.json(result);
-  });
-});
-
-app.post("/userRegistration", (req, res) => {
-  const query = "INSERT INTO user (name, email,password) VALUES (?)";
-  const values = [req.body.name, req.body.email, req.body.password];
-  connection.query(query, [values], (err, result) => {
-    if (err) return res.json({ Message: err });
-    return res.json(result);
-  });
-});
-
-app.get("/read/:id", (req, res) => {
-  const query = "SELECT * FROM user WHERE id = ?";
-  const id = [req.params.id];
-  connection.query(query, [id], (err, result) => {
-    if (err) return res.json({ Message: err });
-    return res.json(result);
-  });
-});
-
-app.put("/update/:id", (req, res) => {
-  const query =
-    "UPDATE user SET name = ?, email = ?, password = ? WHERE id = ?";
-  connection.query(
-    query,
-    [req.body.name, req.body.email, req.body.password, req.params.id],
-    (err, result) => {
-      if (err) return res.json({ Message: err });
-      return res.json(result);
+async function connectWithRetry(retries = 10) {
+  try {
+    connection = await mysql.createConnection({
+      host: process.env.DB_HOST || "mysql",
+      user: process.env.DB_USER || "root",
+      password: process.env.DB_PASSWORD || "root",
+      database: process.env.DB_NAME || "crud_db",
+    });
+    console.log("✅ Connected to MySQL");
+  } catch (err) {
+    console.log(
+      `❌ MySQL not ready, retrying in 5 seconds... (${retries} attempts left)`
+    );
+    if (retries > 0) {
+      setTimeout(() => connectWithRetry(retries - 1), 5000);
+    } else {
+      console.error("💥 Could not connect to MySQL. Exiting...");
+      process.exit(1);
     }
-  );
+  }
+}
+
+// Start initial connection
+connectWithRetry();
+
+// ---------------------------
+// Routes
+// ---------------------------
+
+// Get all users
+app.get("/", async (req, res) => {
+  try {
+    const [rows] = await connection.query("SELECT * FROM user");
+    res.json(rows);
+  } catch (err) {
+    console.log("MYSQL ERROR:", err.message);
+    res.status(500).json({ message: err.message });
+  }
 });
 
-app.delete("/delete/:id", (req, res) => {
-  const query = "DELETE FROM user WHERE id = ?";
-  connection.query(query, [req.params.id], (err, result) => {
-    if (err) return res.json({ Message: err });
-    return res.json(result);
-  });
+// Create user
+app.post("/userRegistration", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    const query = "INSERT INTO user (name, email, password) VALUES (?, ?, ?)";
+    const [result] = await connection.query(query, [name, email, password]);
+    res.json({ message: "User created", insertId: result.insertId });
+  } catch (err) {
+    console.log("MYSQL ERROR:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Read user by ID
+app.get("/read/:id", async (req, res) => {
+  try {
+    const [rows] = await connection.query(
+      "SELECT * FROM user WHERE id = ?",
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.log("MYSQL ERROR:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Update user
+app.put("/update/:id", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    const query = "UPDATE user SET name = ?, email = ?, password = ? WHERE id = ?";
+    const [result] = await connection.query(query, [
+      name,
+      email,
+      password,
+      req.params.id,
+    ]);
+    res.json({ message: "User updated", affectedRows: result.affectedRows });
+  } catch (err) {
+    console.log("MYSQL ERROR:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Delete user
+app.delete("/delete/:id", async (req, res) => {
+  try {
+    const [result] = await connection.query("DELETE FROM user WHERE id = ?", [
+      req.params.id,
+    ]);
+    res.json({ message: "User deleted", affectedRows: result.affectedRows });
+  } catch (err) {
+    console.log("MYSQL ERROR:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ---------------------------
+// Start Express server
+// ---------------------------
+app.listen(port, "0.0.0.0", () => {
+  console.log(`🚀 Server listening on port : ${port}`);
 });
